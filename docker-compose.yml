@@ -1,0 +1,37 @@
+# docker-compose describe qué contenedores quieres y cómo se
+# relacionan entre sí. Con "docker compose up" se levantan todos
+# a la vez, en el orden correcto y en la misma red interna.
+
+services:
+  db:
+    image: postgres:16-alpine   # imagen oficial de Postgres, ya hecha, no la construimos nosotras
+    environment:
+      POSTGRES_USER: netpulse
+      POSTGRES_PASSWORD: netpulse
+      POSTGRES_DB: netpulse
+    ports:
+      - "5432:5432"   # puerto_de_tu_mac:puerto_del_contenedor — para poder conectarte con un cliente si quieres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # así los datos sobreviven si paras el contenedor
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netpulse"]
+      interval: 5s
+      retries: 5
+
+  api:
+    build: .   # construye la imagen usando el Dockerfile de esta misma carpeta
+    depends_on:
+      db:
+        condition: service_healthy   # la api no arranca hasta que Postgres esté realmente lista, no solo "encendida"
+    environment:
+      DATABASE_URL: postgresql://netpulse:netpulse@db:5432/netpulse
+      # "db" aquí es el nombre del servicio de arriba, no "localhost" —
+      # dentro de la red de Docker, los contenedores se llaman entre
+      # sí por su nombre de servicio.
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app   # monta tu carpeta local dentro del contenedor: si editas código, se refleja sin reconstruir la imagen
+
+volumes:
+  postgres_data:
